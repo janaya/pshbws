@@ -1,5 +1,6 @@
 import sys
 sys.path.append('google')
+sys.path.append('tornado')
 
 from tornado.options import define, options
 import tornado.httpserver
@@ -10,7 +11,8 @@ import tornado.websocket
 #import tornado.wsgi
 import wsgiref.handlers
 
-import json
+#import json
+import simplejson as json
 import logging
 import urllib2
 import urllib
@@ -18,22 +20,44 @@ import urllib
 from google.appengine.ext import db
 
 logging.basicConfig(level=logging.DEBUG)
+#log = logging.getLogger()
 define("port", default=8081, help="run on the given port", type=int)
 
 # Default expiration time of a lease.
 DEFAULT_LEASE_SECONDS = (5 * 24 * 60 * 60)  # 5 days
 
-class WSSubscriptionChallengeHandler(tornado.websocket.RequestHandler):
-    
-
-    def on_message():
-        pass
+HUB_URL = 'http://pubsubhubbub.appspot.com'
+WSS_CALLBACK_URL = 'http://rhizomatik.net:8081/callback'
 
 class SubscriptionChallengeHandler(tornado.web.RequestHandler):
+    #TODO: class not needed if using @tornado.web.asynchronous in 
+    # Subscription.send_subscribe_request?
+    
     def get(self):
-        pass
-      
+        #TODO: is there response in the write ?
+        
+        challenge = self.get_argument("hub.challenge", None)
+        if challenge:
+            print "got challenge: %s" % challenge
+            self.write(challenge)
+            
+        else:
+            print "no challenge, get arguments:"  
+            print self.request.arguments
+
+    def post(self):
+        #TODO: check the 'X-Hub-Signature'?
+        
+        print "got post from: %s" % self.request.get_header['User-Agent']
+        data = self.request.body
+        # TODO: how to send back confirmation to the WSSubscribeHandler 
+        # handler?
+
 class Subscription(db.Model):
+    # from google hub, 
+    #TODO: to manage the subscriptions, 
+    # not via (callback_hash, topic_hash), but by (S dyndns URI, P...)
+    
     """Represents a single subscription to a topic for a callback URL."""
 
     STATE_NOT_VERIFIED = 'not_verified'
@@ -50,6 +74,7 @@ class Subscription(db.Model):
     topic = db.TextProperty(required=True)
 #    topic_hash = db.StringProperty(required=True)
     mode = db.TextProperty(required=True)
+    verify = db.TextProperty(required=True)
     
     created_time = db.DateTimeProperty(auto_now_add=True)
     last_modified = db.DateTimeProperty(auto_now=True)
@@ -62,198 +87,112 @@ class Subscription(db.Model):
     hmac_algorithm = db.TextProperty()
     subscription_state = db.StringProperty(default=STATE_NOT_VERIFIED,
                                            choices=STATES)
-    def store(self):
-      pass
 
     def send_subscribe_request(self):
-        hub_url = 'http://pubsubhubbub.appspot.com/publish'
-#        headers = {
-#          "Accept": '*/*',
-#  #        "Authorization": "Basic "+ base64.encode(config.pubsubhubbub.username + ":" + config.pubsubhubbub.password),
-#          "Content-Length": contentLength,
-#          "Content-Type": "application/x-www-form-urlencoded",
-#          "Host": hub.hostname,
-#          "User-Agent": "pshbwss",
-#          "Connection": "close"
-#        }
+        #TODO: use here @tornado.web.asynchronous in case verify=async?
+        
+        headers = {
+#  #        "Authorization": "Basic "+ base64.encode(username + ":" + password),
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "pshbwss",
+        }
 
         params = {
             'hub.mode': self.mode,
-            'hub.callback': self.callback,
+            'hub.callback': WSS_CALLBACK_URL,
             'hub.topic': self.topic,
+            'hub.verify': self.verify,
         }
         data = urllib.urlencode(params)
-        logging.debug(data)
-        request = urllib2.Request(hub_url)
-        request.add_header("Content-Type", "application/x-www-form-urlencoded")
-        request.add_data(data)
+        print data
+        request = urllib2.Request(HUB_URL, data, headers)
 
         try:
             response = urllib2.urlopen(request)
-        except urllib2.HTTPError, e:
-            logging.debug(e)
-            logging.debug(e.code)
-            logging.debug(e.read())
+        except urllib2.HTTPError or urllib2.URLError, e:
+            print e.read()
             
         else:
-            page = response.read()
-            response.close()
-            logging.debug(page)
+            print response
+            respone.close()
 
 
 class WSSubscribeHandler(tornado.websocket.WebSocketHandler):
-    def __init__(self, application, request, **kwargs): 
-        print self.__class__.__mro__
-        logging.debug("Subscribing to..." )
-        super(WSSubscribeHandler, self).__init__(application, request, **kwargs)
-
+    #TODO: how to get the handler of this web socket?
+    
     def on_message(self, message):
-        logging.debug("on wssubscriber handler message")
+        print "Received sub/unsubscribe request from websocket client:"
         params = json.loads(message)
-        properties = dict([(k.split('hub.')[1],v) for k,v in params.items()])
-        logging.debug(params)
+        properties = dict([(str(k.split('hub.')[1]),v) for k,v in params.items()])
         
-#        callback = message_dict.get("hub.callback", None)
-#        topic = message_dict.get("hub.topic", None)
-#        mode = message_dict.get("hub.mode", None) 
-#        verify_type = message_dict.get("hub.verify", None) 
-#        verify_token = message_dict.get("verify_token", None)
-#        secret = message_dict.get("secret", None)
-#        lease_seconds = message_dict.get("lease_seconds", str(DEFAULT_LEASE_SECONDS))
-
-    #    error_message = None
-    #    if not callback or not is_valid_url(callback):
-    #      error_message = ('Invalid parameter: hub.callback; '
-    #                       'must be valid URI with no fragment and '
-    #                       'optional port %s' % ','.join(VALID_PORTS))
-    #    else:
-    #      callback = normalize_iri(callback)
-
-    #    if not topic or not is_valid_url(topic):
-    #      error_message = ('Invalid parameter: hub.topic; '
-    #                       'must be valid URI with no fragment and '
-    #                       'optional port %s' % ','.join(VALID_PORTS))
-    #    else:
-    #      topic = normalize_iri(topic)
-
-#        enabled_types = [vt for vt in verify_type_list if vt in ('async', 'sync')]
-#        if not enabled_types:
-#          error_message = 'Invalid values for hub.verify: %s' % (verify_type_list,)
-#          logging.debug(error_message)
-#          self.write_message(unicode(error_message))
-#        else:
-#          verify_type = enabled_types[0]
-
-    #    if mode not in ('subscribe', 'unsubscribe'):
-    #      error_message = 'Invalid value for hub.mode: %s' % mode
-
-    #    if lease_seconds:
-    #      try:
-    #        old_lease_seconds = lease_seconds
-    #        lease_seconds = int(old_lease_seconds)
-    #        if not old_lease_seconds == str(lease_seconds):
-    #          raise ValueError
-    #      except ValueError:
-    #        error_message = ('Invalid value for hub.lease_seconds: %s' %
-    #                         old_lease_seconds)
-
-    #    if error_message:
-    #      logging.debugging.debug('Bad request for mode = %s, topic = %s, '
-    #                    'callback = %s, verify_token = %s, lease_seconds = %s: %s',
-    #                    mode, topic, callback, verify_token,
-    #                    lease_seconds, error_message)
-    #      self.write_message(error_message)
-    #      return 400
-
+        # TODO: manage invalid parameters
+        # TODO: manage several topics
+        
         try:
-    #      # Retrieve any existing subscription for this callback.
-    #      sub = Subscription.get_by_key_name(
-    #          Subscription.create_key_name(callback, topic))
-    
+          # TODO: create subscription if it does not exists already
+          
           sub = Subscription(**properties)
-
-    #      # Deletions for non-existant subscriptions will be ignored.
-    #      if mode == 'unsubscribe' and not sub:
-    #        return self.response.set_status(204)
-
-    #      # Enqueue a background verification task, or immediately confirm.
-    #      # We prefer synchronous confirmation.
-    
+          
+          # TODO: manage unsubscribe
+          
+          # TODO: manage sync verification
           if params["hub.verify"].lower() == 'sync':
-    #        if hooks.execute(confirm_subscription,
-    #              mode, topic, callback, verify_token, secret, lease_seconds):
-    #          return self.response.set_status(204)
-    #        else:
-    #          self.write_message('Error trying to confirm subscription')
-    #          return self.response.set_status(409)
               pass
               
           else:
             if params["hub.mode"].lower() == 'subscribe':
-    #          Subscription.request_insert(callback, topic, verify_token, secret,
-    #                                      lease_seconds=lease_seconds)
-              # sub.store
-              logging.debug("Going to ask subs")
-              self.write_message(u"Going to ask subs")
+              # TODO: enque verification task if async and store subscription
+              
+              print "Sending subscription request to the hubbub"
+              self.write_message(u"Sending subscription request to the hubbub")
               
               sub.send_subscribe_request()
 
-    #        else:
-    #          Subscription.request_remove(callback, topic, verify_token)
-    #        logging.debugging.debug('Queued %s request for callback = %s, '
-    #                      'topic = %s, verify_token = "%s", lease_seconds= %s',
-    #                      mode, callback, topic, verify_token, lease_seconds)
-    #        return self.response.set_status(202)
-
-    #    except (apiproxy_errors.Error, db.Error,
-    #            runtime.DeadlineExceededError, taskqueue.Error):
         except Exception, e:
             logging.exception(e)
             self.write_message(unicode(e))
-            
-    #      self.response.headers['Retry-After'] = '120'
-    #      return self.response.set_status(503) 
+
+    def on_close(self):
+        print "web socket closed"
 
 
 class WSHubHandler(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs): 
         print self.__class__.__mro__
-        logging.debug("Listening to WebSocket connections on ws://" )
-#        logging.debug(self.socket)
+        print "Listening to web socket connections on ws://"
         super(WSHubHandler, self).__init__(application, request, **kwargs)
 
     def open(self):
-#        logging.debug(self.socket)
-        logging.debug("WebSocket opened" )
-        self.write_message(u"Awaiting feed subscription request")
+        print "WebSocket opened"
+        self.write_message(u"web socket opened")
 
     def on_message(self, message):
-        logging.debug("Received %s" % message)
+        print "Received request from web socket client: %s" % message
         mode = json.loads(message.lower()).get("hub.mode",None)
         if mode == 'publish':
-            logging.debug("mode publish" )
+            print "mode publish"
             self.write_message(u"mode publish")
 #            handler = WSPublishHandler()   
         elif mode in ('subscribe', 'unsubscribe'):
-            logging.debug("mode sub/unsubsribe" )
+            print "mode sub/unsubsribe"
             self.write_message(u"mode sub/unsubsribe")
+            # TODO: this creates a different socket?
             handler = WSSubscribeHandler(self.application, self.request)
         else:
-            logging.debug("hub.mode is invalid" )
+            print "hub.mode is invalid"
             self.write_message(u"hub.mode is invalid")
             return
 
-#        handler.initialize(self.request, self.response)
         handler.on_message(message)
 
     def on_close(self):
-        print "WebSocket closed"
+        print "web socket closed"
 
 def main():
     handlers = [
         (r"/", WSHubHandler),
+        (r"/callback", SubscriptionChallengeHandler),
     ]
-    print handlers
 
     application = tornado.web.Application(handlers)
     http_server = tornado.httpserver.HTTPServer(application)
