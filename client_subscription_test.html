@@ -1,0 +1,106 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+   "http://www.w3.org/TR/html4/loose.dtd"> 
+<html lang="en"> 
+  <head> 
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> 
+    <title>Test</title> 
+    <script type="text/javascript" src="http://www.google.com/jsapi"></script>	
+    <script type="text/javascript">	
+      google.load("jquery", "1.4.1");
+      google.load("jqueryui", "1.7.2");
+    </script> 
+    <script type="text/javascript"> 
+	  $(document).ready(function(){
+		  $("#tabs").tabs();
+				
+		  var conn = {};
+		  var host = "myserver.net",
+              port = 8081;
+          var serverUri = "ws://"+host+":"+port;
+          var feed        = document.getElementById('feed'),
+              form        = feed.form;
+		  // Outputs to console and list
+		  function log(message) {
+			  var state = document.createElement('div');
+			  state.innerHTML = message;
+			  document.getElementById('main').appendChild(state);
+		  }
+		
+          function openConnection() {
+              if ( !conn.readyState || conn.readyState > 1 ) {
+   
+                  conn = new WebSocket( serverUri );
+   
+                  conn.onopen = function () {
+                      //state.innerHTML = "Socket opened";
+                      //state.className = "open";
+                      console.debug("Socket opened");
+                  };
+   
+                  conn.onmessage = function( event ) {
+                      var string = event.data;
+                      //var code = format_xml(string).replace(/></,'').replace(/\&/g,'&'+'amp;').replace(/</g,'&'+'lt;').replace(/>/g,'&'+'gt;').replace(/\'/g,'&'+'apos;').replace(/\"/g,'&'+'quot;')
+                      //$('#messages').prepend("<pre class='sh_xml'><code>"+ code + "</code></pre>");
+                      //sh_highlightDocument(); 
+                      //if($('#messages').children().size() > 5) {
+                      //    $('#messages pre:last-child').remove();
+                      //}
+                      console.debug(string);
+                  };
+   
+                  conn.onclose = function( event ) {
+                      //state.innerHTML = "x";
+                      //state.className = "closed";
+                      console.debug("socket closed");
+                  };
+              }
+          }        		
+          
+		  if (!window.WebSocket) {
+              //state.innerHTML = "Sockets not supported";
+              //state.className = "failed";
+			  //$("#news").show("normal");
+			  //$('#news').html("Sockets not supported");	
+			  console.debug("sockets not supported");
+          } else {
+			  console.debug("sockets supported");
+              form.addEventListener("submit", function (e) {
+                  e.preventDefault();
+   
+                  // if web socket connected
+                  if (conn.readyState === 1) {
+                      var connection = {"hub.mode": "subscribe", "hub.verify": "async", "hub.callback": "http://localhost/pshbws/callback", "hub.topic": "http://superfeedr.com/track/google"}; 
+                      // "hub_url": "http://pubsubhubbub.appspot.com/subscribe", 
+                      conn.send(JSON.stringify(connection));
+                  }
+              }, false);
+              openConnection();
+          }
+		
+		
+	  });
+    </script> 
+  </head> 
+ 
+  <body> 
+    <div id="full"> 
+      <div id="header"> 
+        <h1><a href="http://localhost/pshbws/">Test</a></h1> 
+      </div> 
+      <div id="main"> 
+        <div class="left">
+            <form> 
+            Are you sure you want to follow?
+            <input type="submit" id="feed" value="Yes" /> 
+            </form> 
+        </div> 
+        <div class="right"> 
+        </div> 
+        <div style="clear: both;"> </div> 
+        </div> 
+        <div id="footer"> 
+        </div> 
+    </div> 
+  </body> 
+</html> 
+ 

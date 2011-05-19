@@ -1,0 +1,22 @@
+{
+  "websocket" : {
+    "listen": {
+      "host" : "myserver.net",
+      "port" : 27261
+    }
+  },
+  "pubsubhubbub" : {
+    "hub" : "http://pubsubhubbub.appspot.com/subscribe",
+    "username" : "",
+    "password" : "",
+    "listen": {
+      "host" : "myserver.net",
+      "port" : 8081
+    },
+    "callback_url_root" : "http://myserver.net:8081",
+    "callback_url_path" : "/socketscallback/",
+    "verify_mode": "async"
+  },
+  "debug" : true
+}
+
