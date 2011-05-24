@@ -36,7 +36,6 @@ var Feed = function(url) {
 var Subscription = function(socket_id, feed ) {
   this.socket_id = socket_id;
   log("Subscription feed: "+feed);
-  }
   this.feed = feed; 
 };
 
