@@ -285,11 +285,13 @@ web_server.post(config.pubsubhubbub.callback_url_path + ':feed_id', function(req
   log("in server post");
   var feed_subs = subscriptions_store.feeds[req.params.feed_id];
   log("req.params.feed_id " + req.params.feed_id);
+  log("feed_subs: " + feed_subs);
   if (feed_subs) {
     req.on('data', function(data) {
       log("in data");
       var sockets = 0;
       for(subscription_id in feed_subs.subscriptions) {
+        log("subscription_id: "+ subscription_id);
         subscription = feed_subs.subscriptions[subscription_id];
         ws_server.send(subscription.socket_id, data, function(socket) {
           if(socket) {
