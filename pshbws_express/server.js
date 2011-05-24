@@ -25,6 +25,7 @@ var log = function(message) {
 //
 // Feed object
 var Feed = function(url) {
+  log("Feed, url: "+url);
   this.url = url;
   this.id = base64.encode(url);
   this.callback_url = config.pubsubhubbub.callback_url_root + config.pubsubhubbub.callback_url_path + this.id;
@@ -34,6 +35,8 @@ var Feed = function(url) {
 // Subscription object
 var Subscription = function(socket_id, feed ) {
   this.socket_id = socket_id;
+  log("Subscription feed: "+feed);
+  }
   this.feed = feed; 
 };
 
@@ -71,6 +74,7 @@ var SubscriptionStore = function() {
   // 
   // Creates (or just returns) a new subscription for this socket id and this feed url
   this.subscribe = function(socket_id, url) {
+    log("this.subscribe, url: "+url);
     var feed = new Feed(url)
     if(!this.feeds[feed.id]) {
       // The feed doesn't exist yet
@@ -179,19 +183,37 @@ ws_server.addListener("listening", function() {
 // Handle Web Sockets when they connect
 ws_server.addListener("connection", function(socket ) {
   // When connected
-  ws_server.send(socket.id, "Awaiting feed subscription request");
+  ws_server.send(socket.id, "Awaiting client message");
   socket.addListener("message", function(json) {
+    log("message received: "+json);
     subs = JSON.parse(json);
+    
+    //if subs["hub.mode"] == 'subscribe'
+    
     // When asked to subscribe to a feed_url
-    ws_server.send(socket.id, "Subscribing to " + subs.feed_url);
-    var subscription = subscriptions_store.subscribe(socket.id, subs.feed_url);
+    ws_server.send(socket.id, "Subscribing to " + subs["hub.topic"]);
+    var subscription = subscriptions_store.subscribe(socket.id, subs["hub.topic"]);
     subscribe(subscription.feed, "subscribe", subs.hub_url, function() {
-      ws_server.send(socket.id, "Subscribed to " + subs.feed_url);
-      log("Subscribed to " + subscription.feed.url + subs.feed_url + " for " + socket.id);
+      ws_server.send(socket.id, "Subscribed to " + subs["hub.topic"]);
+      log("Subscribed to " + subscription.feed.url + subs["hub.topic"] + " for " + socket.id);
     }, function(error) {
-      ws_server.send(socket.id, "Couldn't subscribe to " + subs.feed_url + " : "+ error.trim() );
-      log("Failed subscription to " + subs.feed_url + " for " + socket.id);
+    ws_server.send(socket.id, "Couldn't subscribe to " + subs["hub.topic"] + " : "+ error.trim() );
+      log("Failed subscription to " + subs["hub.topic"] + " for " + socket.id);
     });
+    
+    //if  subs["hub.mode"] == 'publish'
+    //ws_server.send(socket.id, "Subscribing to " + subs["hub.topic"]);
+    //var publication = publications_store.subscribe(socket.id, subs["hub.topic"]);
+    //publish(publication.feed, "subscribe", subs.hub_url, function() {
+    //  ws_server.send(socket.id, "Publicated " + subs["hub.topic"]);
+    //  log("Publicated " + subscription.feed.url + subs["hub.topic"] + " for " + socket.id);
+    //}, function(error) {
+    //ws_server.send(socket.id, "Couldn't publish to " + subs["hub.topic"] + " : "+ error.trim() );
+    //  log("Failed publication " + subs["hub.topic"] + " for " + socket.id);
+    //});
+    
+    //if  subs["hub.mode"] == 'unsubscribe'
+    
   });
 });
 
