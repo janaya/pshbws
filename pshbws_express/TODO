@@ -1,0 +1,4 @@
+* patch for http.js
+* add subscription to web socket server whenever the client connect to the stored followings
+* move client socket to client server side
+* https, wss
